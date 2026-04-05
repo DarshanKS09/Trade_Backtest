@@ -1,0 +1,61 @@
+:root {
+  color: #111827;
+  background:
+    radial-gradient(circle at top, #eff6ff 0%, #ffffff 55%),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+#root {
+  width: 100%;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.app-header {
+  margin: 0 auto 20px;
+  max-width: 1400px;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: clamp(1.75rem, 4vw, 3rem);
+  line-height: 1.1;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #2563eb;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.chart-panel {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 1400px;
+  border: 1px solid #dbeafe;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.chart-container {
+  width: 100%;
+  height: min(70vh, 720px);
+}

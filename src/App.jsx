@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { CandlestickSeries, createChart } from "lightweight-charts";
+import AssetSelector from "./components/AssetSelector";
 import TimeframeSelector from "./components/TimeframeSelector";
-import { fetchCandles } from "./lib/binance";
+import { fetchMarketCandles } from "./lib/dataClient";
+import { getAssetsForMarket, MARKET_OPTIONS } from "./lib/marketConfig";
 
+const DEFAULT_MARKET = "crypto";
 const DEFAULT_INTERVAL = "1m";
 const DEFAULT_HOURS = 100;
 const HOUR_OPTIONS = [10, 50, 100];
@@ -13,11 +16,21 @@ function App() {
   const seriesRef = useRef(null);
   const requestIdRef = useRef(0);
 
+  const [market, setMarket] = useState(DEFAULT_MARKET);
+  const [asset, setAsset] = useState(getAssetsForMarket(DEFAULT_MARKET)[0].value);
   const [interval, setInterval] = useState(DEFAULT_INTERVAL);
   const [hours, setHours] = useState(DEFAULT_HOURS);
   const [candles, setCandles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const assets = getAssetsForMarket(market);
+
+  useEffect(() => {
+    if (!assets.some((item) => item.value === asset)) {
+      setAsset(assets[0]?.value ?? "");
+    }
+  }, [market, asset]);
 
   useEffect(() => {
     if (!chartContainerRef.current) {
@@ -83,10 +96,17 @@ function App() {
     }
 
     seriesRef.current.setData(candles);
-    chartRef.current.timeScale().fitContent();
+
+    if (candles.length > 0) {
+      chartRef.current.timeScale().fitContent();
+    }
   }, [candles]);
 
   useEffect(() => {
+    if (!asset) {
+      return undefined;
+    }
+
     const controller = new AbortController();
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
@@ -97,8 +117,9 @@ function App() {
       setCandles([]);
 
       try {
-        const data = await fetchCandles({
-          symbol: "BTCUSDT",
+        const data = await fetchMarketCandles({
+          market,
+          symbol: asset,
           interval,
           hours,
           signal: controller.signal,
@@ -118,7 +139,6 @@ function App() {
           return;
         }
 
-        setCandles([]);
         setError(fetchError.message || "Failed to fetch candles.");
       } finally {
         if (requestIdRef.current === requestId) {
@@ -132,21 +152,32 @@ function App() {
     return () => {
       controller.abort();
     };
-  }, [interval, hours]);
+  }, [market, asset, interval, hours]);
+
+  const marketLabel =
+    MARKET_OPTIONS.find((option) => option.value === market)?.label ?? market;
 
   return (
     <main className="app-shell">
       <header className="app-header">
-        <p className="eyebrow">Binance BTCUSDT</p>
+        <p className="eyebrow">Multi-Asset Trading Platform</p>
         <div className="header-row">
           <div>
-            <h1>Dynamic Candlestick Chart</h1>
+            <h1>Unified Candlestick Chart</h1>
             <p className="subheading">
-              Fetches live Binance klines for the selected timeframe and recent
-              hour range.
+              Switch between crypto, Indian equities, and US stocks without
+              leaving the same chart workflow.
             </p>
           </div>
           <div className="controls">
+            <AssetSelector
+              market={market}
+              asset={asset}
+              marketOptions={MARKET_OPTIONS}
+              assetOptions={assets}
+              onMarketChange={setMarket}
+              onAssetChange={setAsset}
+            />
             <TimeframeSelector value={interval} onChange={setInterval} />
             <label className="control-field">
               <span>Range</span>
@@ -156,7 +187,7 @@ function App() {
               >
                 {HOUR_OPTIONS.map((option) => (
                   <option key={option} value={option}>
-                    Last {option}h
+                    Last {option} hours
                   </option>
                 ))}
               </select>
@@ -167,6 +198,8 @@ function App() {
 
       <section className="chart-panel">
         <div className="chart-toolbar">
+          <span>{marketLabel}</span>
+          <span>{asset}</span>
           <span>{interval} interval</span>
           <span>{hours} hour range</span>
           <span>{candles.length} candles loaded</span>
@@ -181,6 +214,10 @@ function App() {
 
           {!loading && error ? (
             <div className="chart-message error-message">{error}</div>
+          ) : null}
+
+          {!loading && !error && candles.length === 0 ? (
+            <div className="chart-message">No data available for this selection.</div>
           ) : null}
         </div>
       </section>

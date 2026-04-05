@@ -63,6 +63,7 @@ body {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  align-items: end;
 }
 
 .control-field {
@@ -77,6 +78,10 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.control-field-wide {
+  min-width: 180px;
 }
 
 .control-field select {
@@ -147,6 +152,10 @@ body {
 
   .control-field {
     flex: 1 1 0;
+  }
+
+  .control-field-wide {
+    min-width: unset;
   }
 
   .chart-message {

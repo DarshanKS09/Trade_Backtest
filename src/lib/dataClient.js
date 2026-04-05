@@ -50,12 +50,9 @@ export async function fetchMarketCandles({ market, symbol, interval, hours, sign
   }
 
   const endTime = Date.now();
-  const startTime = endTime - hours * 60 * 60 * 1000;
-  const expectedCandles = Math.ceil((endTime - startTime) / intervalMs);
-
-  if (expectedCandles > MAX_CANDLES) {
-    throw new Error("Requested range is too large. Please choose a smaller range.");
-  }
+  const requestedStartTime = endTime - hours * 60 * 60 * 1000;
+  const maxWindowStartTime = endTime - MAX_CANDLES * intervalMs;
+  const startTime = Math.max(requestedStartTime, maxWindowStartTime);
 
   if (market === "crypto") {
     return fetchBinanceCandles({ symbol, interval, startTime, endTime, intervalMs, signal });

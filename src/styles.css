@@ -93,6 +93,51 @@ body {
   padding: 12px 14px;
 }
 
+.run-button {
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%);
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 12px 18px;
+}
+
+.run-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.results-panel {
+  margin: 0 auto 20px;
+  width: 100%;
+  max-width: 1400px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.result-card {
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
+  padding: 16px 18px;
+}
+
+.result-card span {
+  color: #475569;
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+}
+
+.result-card strong {
+  color: #0f172a;
+  font-size: 1.3rem;
+}
+
 .chart-panel {
   margin: 0 auto;
   width: 100%;
@@ -139,6 +184,10 @@ body {
 .error-message {
   border-color: #fecaca;
   color: #b91c1c;
+}
+
+.chart-message-lower {
+  top: 68px;
 }
 
 @media (max-width: 720px) {

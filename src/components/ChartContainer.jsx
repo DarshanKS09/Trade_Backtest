@@ -1,13 +1,14 @@
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import {
   CandlestickSeries,
   createChart,
   createSeriesMarkers,
+  CrosshairMode,
 } from "lightweight-charts";
 
 const REPLAY_RIGHT_PADDING = 20;
 
-function ChartPanel({
+const ChartContainer = memo(function ChartContainer({
   candles,
   visibleCandles,
   replayActive,
@@ -16,7 +17,6 @@ function ChartPanel({
   loading,
   error,
   backtestError,
-  toolbarItems,
   onSelectStart,
 }) {
   const chartContainerRef = useRef(null);
@@ -32,31 +32,46 @@ function ChartPanel({
     const chart = createChart(chartContainerRef.current, {
       autoSize: true,
       layout: {
-        background: { color: "#ffffff" },
-        textColor: "#1f2937",
+        background: { color: "#0e1117" },
+        textColor: "#9aa4b2",
       },
       grid: {
-        vertLines: { color: "#e5e7eb" },
-        horzLines: { color: "#e5e7eb" },
+        vertLines: { color: "rgba(255,255,255,0.04)" },
+        horzLines: { color: "rgba(255,255,255,0.04)" },
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: {
+          color: "rgba(138, 150, 163, 0.35)",
+          width: 1,
+          labelBackgroundColor: "#1b2230",
+        },
+        horzLine: {
+          color: "rgba(138, 150, 163, 0.35)",
+          width: 1,
+          labelBackgroundColor: "#1b2230",
+        },
       },
       width: chartContainerRef.current.clientWidth,
-      height: 520,
+      height: 640,
       rightPriceScale: {
-        borderColor: "#d1d5db",
+        borderColor: "rgba(255,255,255,0.08)",
       },
       timeScale: {
-        borderColor: "#d1d5db",
+        borderColor: "rgba(255,255,255,0.08)",
         timeVisible: true,
         secondsVisible: false,
       },
     });
 
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#16a34a",
-      downColor: "#dc2626",
+      upColor: "#22c55e",
+      downColor: "#ef4444",
       borderVisible: false,
-      wickUpColor: "#16a34a",
-      wickDownColor: "#dc2626",
+      wickUpColor: "#22c55e",
+      wickDownColor: "#ef4444",
+      priceLineVisible: true,
+      lastValueVisible: true,
     });
 
     chartRef.current = chart;
@@ -143,16 +158,16 @@ function ChartPanel({
         {
           time: trade.entryTime,
           position: "belowBar",
-          color: "#16a34a",
+          color: "#22c55e",
           shape: "arrowUp",
           text: "Buy",
         },
         {
           time: trade.exitTime,
           position: "aboveBar",
-          color: trade.profit >= 0 ? "#2563eb" : "#dc2626",
+          color: trade.profit >= 0 ? "#38bdf8" : "#ef4444",
           shape: "arrowDown",
-          text: trade.profit >= 0 ? "Sell +" : "Sell -",
+          text: trade.profit >= 0 ? "Exit +" : "Exit -",
         },
       ])
       .filter((marker) => !replayActive || marker.time <= lastVisibleTime);
@@ -161,35 +176,25 @@ function ChartPanel({
   }, [backtestResult, replayActive, visibleCandles]);
 
   return (
-    <section className="chart-panel">
-      <div className="chart-toolbar">
-        {toolbarItems.map((item) => (
-          <span key={item}>{item}</span>
-        ))}
-      </div>
-
-      <div className="chart-stage">
+    <section className="chart-shell">
+      <div className="chart-surface">
         <div ref={chartContainerRef} className="chart-container" />
 
-        {loading ? <div className="chart-message">Loading market data...</div> : null}
-
-        {!loading && error ? (
-          <div className="chart-message error-message">{error}</div>
-        ) : null}
-
+        {loading ? <div className="floating-badge">Loading market data...</div> : null}
+        {!loading && error ? <div className="floating-badge error-badge">{error}</div> : null}
         {!loading && !error && candles.length === 0 ? (
-          <div className="chart-message">No data available for this selection.</div>
+          <div className="floating-badge">No data available for this selection.</div>
         ) : null}
-
         {!loading && !error && backtestError ? (
-          <div className="chart-message error-message chart-message-lower">
-            {backtestError}
-          </div>
+          <div className="floating-badge error-badge lower-badge">{backtestError}</div>
+        ) : null}
+        {isSelectingStart ? (
+          <div className="selection-hint">Click a candle on the chart to set replay start</div>
         ) : null}
       </div>
     </section>
   );
-}
+});
 
 function clampIndex(value, length) {
   if (length === 0) {
@@ -199,4 +204,4 @@ function clampIndex(value, length) {
   return Math.min(Math.max(Math.floor(value), 0), length - 1);
 }
 
-export default ChartPanel;
+export default ChartContainer;

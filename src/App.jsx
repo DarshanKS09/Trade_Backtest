@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import ResultsPanel from "./components/ResultsPanel";
-import HeaderControls from "./components/HeaderControls";
-import ReplayControls from "./components/ReplayControls";
-import ChartPanel from "./components/ChartPanel";
+import HeaderBar from "./components/HeaderBar";
+import ControlsBar from "./components/ControlsBar";
+import ChartContainer from "./components/ChartContainer";
+import SidePanel from "./components/SidePanel";
+import TradeLogPanel from "./components/TradeLogPanel";
 import { runBacktest } from "./backtest/engine";
 import { STRATEGY_OPTIONS, strategyRegistry } from "./backtest/strategies";
 import { fetchMarketCandles } from "./lib/dataClient";
@@ -243,10 +244,22 @@ function App() {
   const metrics = backtestResult?.metrics;
   const selectedStartTime =
     candles[startIndex]?.time != null ? formatTimestamp(candles[startIndex].time) : "N/A";
+  const strategyLabel =
+    STRATEGY_OPTIONS.find((option) => option.value === strategyId)?.label ?? strategyId;
 
   return (
     <main className="app-shell">
-      <HeaderControls
+      <HeaderBar
+        marketLabel={marketLabel}
+        asset={asset}
+        interval={interval}
+        hours={hours}
+        visibleCount={visibleCandles.length}
+        totalCount={candles.length}
+        replayLabel={replayActive ? `Replay ${safeCurrentIndex}` : "Full Chart"}
+      />
+
+      <ControlsBar
         market={market}
         asset={asset}
         assets={assets}
@@ -259,28 +272,19 @@ function App() {
         loading={loading}
         backtestRunning={backtestRunning}
         candlesCount={candles.length}
+        replayActive={replayActive}
+        isSelectingStart={isSelectingStart}
+        isPlaying={isPlaying}
+        speed={speed}
+        speedOptions={REPLAY_SPEED_OPTIONS}
+        currentIndex={safeCurrentIndex}
+        lastCandleIndex={lastCandleIndex}
         onMarketChange={setMarket}
         onAssetChange={setAsset}
         onIntervalChange={setInterval}
         onHoursChange={setHours}
         onStrategyChange={setStrategyId}
         onRunBacktest={handleRunBacktest}
-      />
-
-      <ResultsPanel metrics={metrics} />
-
-      <ReplayControls
-        candlesCount={candles.length}
-        loading={loading}
-        replayActive={replayActive}
-        isSelectingStart={isSelectingStart}
-        isPlaying={isPlaying}
-        speed={speed}
-        speedOptions={REPLAY_SPEED_OPTIONS}
-        startIndex={startIndex}
-        selectedStartTime={selectedStartTime}
-        currentIndex={safeCurrentIndex}
-        lastCandleIndex={lastCandleIndex}
         onSpeedChange={setSpeed}
         onNextCandle={handleNextCandle}
         onReplayButton={handleReplayButton}
@@ -288,25 +292,30 @@ function App() {
         onExitReplay={handleExitReplay}
       />
 
-      <ChartPanel
-        candles={candles}
-        visibleCandles={visibleCandles}
-        replayActive={replayActive}
-        isSelectingStart={isSelectingStart}
-        backtestResult={backtestResult}
-        loading={loading}
-        error={error}
-        backtestError={backtestError}
-        toolbarItems={[
-          marketLabel,
-          asset,
-          `${interval} interval`,
-          `${hours} hour range`,
-          `${visibleCandles.length} visible / ${candles.length} loaded`,
-          replayActive ? `Replay index ${safeCurrentIndex}` : "Full chart mode",
-        ]}
-        onSelectStart={handleSelectReplayStart}
-      />
+      <section className="workspace-grid">
+        <ChartContainer
+          candles={candles}
+          visibleCandles={visibleCandles}
+          replayActive={replayActive}
+          isSelectingStart={isSelectingStart}
+          backtestResult={backtestResult}
+          loading={loading}
+          error={error}
+          backtestError={backtestError}
+          onSelectStart={handleSelectReplayStart}
+        />
+
+        <SidePanel
+          metrics={metrics}
+          strategyLabel={strategyLabel}
+          replayActive={replayActive}
+          isSelectingStart={isSelectingStart}
+          isPlaying={isPlaying}
+          selectedStartTime={selectedStartTime}
+        />
+      </section>
+
+      <TradeLogPanel trades={backtestResult?.trades} />
     </main>
   );
 }

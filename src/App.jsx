@@ -16,6 +16,7 @@ const DEFAULT_INTERVAL = "1m";
 const DEFAULT_HOURS = 100;
 const HOUR_OPTIONS = [10, 50, 100];
 const DEFAULT_REPLAY_SPEED = "1x";
+const REPLAY_RIGHT_PADDING = 20;
 const REPLAY_SPEED_OPTIONS = {
   "1x": 1000,
   "5x": 250,
@@ -42,15 +43,17 @@ function App() {
   const [backtestRunning, setBacktestRunning] = useState(false);
   const [startIndex, setStartIndex] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [startInput, setStartInput] = useState("0");
   const [speed, setSpeed] = useState(DEFAULT_REPLAY_SPEED);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [replayActive, setReplayActive] = useState(false);
+  const [isSelectingStart, setIsSelectingStart] = useState(false);
 
   const assets = getAssetsForMarket(market);
   const lastCandleIndex = Math.max(candles.length - 1, 0);
   const safeCurrentIndex = Math.min(Math.max(currentIndex, 0), lastCandleIndex);
-  const visibleCandles =
-    candles.length > 0 ? candles.slice(0, safeCurrentIndex + 1) : [];
+  const visibleCandles = replayActive
+    ? candles.slice(0, safeCurrentIndex + 1)
+    : candles;
 
   useEffect(() => {
     if (!assets.some((item) => item.value === asset)) {
@@ -120,6 +123,32 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!chartRef.current) {
+      return undefined;
+    }
+
+    function handleChartClick(param) {
+      if (!isSelectingStart || candles.length === 0 || param.logical == null) {
+        return;
+      }
+
+      const selectedIndex = clampIndex(Math.round(param.logical), candles.length);
+
+      setStartIndex(selectedIndex);
+      setCurrentIndex(selectedIndex);
+      setReplayActive(true);
+      setIsSelectingStart(false);
+      setIsPlaying(false);
+    }
+
+    chartRef.current.subscribeClick(handleChartClick);
+
+    return () => {
+      chartRef.current?.unsubscribeClick(handleChartClick);
+    };
+  }, [isSelectingStart, candles.length]);
+
+  useEffect(() => {
     if (!seriesRef.current || !chartRef.current || !markersRef.current) {
       return;
     }
@@ -128,9 +157,17 @@ function App() {
     markersRef.current.setMarkers([]);
 
     if (visibleCandles.length > 0) {
-      chartRef.current.timeScale().fitContent();
+      if (replayActive) {
+        const visibleCount = visibleCandles.length;
+        const from = Math.max(0, visibleCount - 150);
+        const to = visibleCount - 1 + REPLAY_RIGHT_PADDING;
+
+        chartRef.current.timeScale().setVisibleLogicalRange({ from, to });
+      } else {
+        chartRef.current.timeScale().fitContent();
+      }
     }
-  }, [candles, safeCurrentIndex]);
+  }, [candles, safeCurrentIndex, replayActive]);
 
   useEffect(() => {
     if (!asset) {
@@ -149,8 +186,9 @@ function App() {
       setBacktestError("");
       setStartIndex(0);
       setCurrentIndex(0);
-      setStartInput("0");
       setIsPlaying(false);
+      setReplayActive(false);
+      setIsSelectingStart(false);
 
       try {
         const data = await fetchMarketCandles({
@@ -194,16 +232,18 @@ function App() {
     if (candles.length === 0) {
       setStartIndex(0);
       setCurrentIndex(0);
-      setStartInput("0");
       setIsPlaying(false);
+      setReplayActive(false);
+      setIsSelectingStart(false);
       return;
     }
 
     setStartIndex(0);
-    setCurrentIndex(0);
-    setStartInput("0");
+    setCurrentIndex(lastCandleIndex);
     setIsPlaying(false);
-  }, [candles]);
+    setReplayActive(false);
+    setIsSelectingStart(false);
+  }, [candles, lastCandleIndex]);
 
   useEffect(() => {
     if (!markersRef.current) {
@@ -232,13 +272,16 @@ function App() {
         text: trade.profit >= 0 ? "Sell +" : "Sell -",
       },
       ])
-      .filter((marker) => marker.time <= (visibleCandles.at(-1)?.time ?? 0));
+      .filter(
+        (marker) =>
+          !replayActive || marker.time <= (visibleCandles.at(-1)?.time ?? 0)
+      );
 
     markersRef.current.setMarkers(markers);
-  }, [backtestResult, safeCurrentIndex, candles]);
+  }, [backtestResult, safeCurrentIndex, candles, replayActive]);
 
   useEffect(() => {
-    if (!isPlaying || candles.length === 0) {
+    if (!isPlaying || !replayActive || candles.length === 0) {
       return undefined;
     }
 
@@ -262,7 +305,14 @@ function App() {
     return () => {
       window.clearInterval(timer);
     };
-  }, [isPlaying, speed, lastCandleIndex, candles.length, safeCurrentIndex]);
+  }, [
+    isPlaying,
+    replayActive,
+    speed,
+    lastCandleIndex,
+    candles.length,
+    safeCurrentIndex,
+  ]);
 
   function handleRunBacktest() {
     if (candles.length === 0) {
@@ -299,23 +349,8 @@ function App() {
     }
   }
 
-  function handleStartIndexChange(nextValue) {
-    const parsedValue = Number(nextValue);
-
-    if (!Number.isFinite(parsedValue)) {
-      setStartInput(nextValue);
-      return;
-    }
-
-    const clampedIndex = clampIndex(parsedValue, candles.length);
-    setStartInput(String(clampedIndex));
-    setStartIndex(clampedIndex);
-    setCurrentIndex(clampedIndex);
-    setIsPlaying(false);
-  }
-
   function handleNextCandle() {
-    if (candles.length === 0) {
+    if (candles.length === 0 || !replayActive) {
       return;
     }
 
@@ -325,6 +360,31 @@ function App() {
   function handleResetReplay() {
     setCurrentIndex(startIndex);
     setIsPlaying(false);
+  }
+
+  function handleReplayButton() {
+    if (candles.length === 0) {
+      return;
+    }
+
+    if (!replayActive) {
+      setIsSelectingStart(true);
+      setIsPlaying(false);
+      return;
+    }
+
+    if (safeCurrentIndex >= lastCandleIndex) {
+      return;
+    }
+
+    setIsPlaying((previous) => !previous);
+  }
+
+  function handleExitReplay() {
+    setReplayActive(false);
+    setIsSelectingStart(false);
+    setIsPlaying(false);
+    setCurrentIndex(lastCandleIndex);
   }
 
   const marketLabel =
@@ -423,30 +483,15 @@ function App() {
 
       <section className="replay-panel">
         <div className="replay-card replay-card-wide">
-          <span>Replay Start Index</span>
-          <input
-            type="number"
-            min="0"
-            max={lastCandleIndex}
-            value={startInput}
-            onChange={(event) => setStartInput(event.target.value)}
-            onBlur={(event) => handleStartIndexChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                handleStartIndexChange(event.currentTarget.value);
-              }
-            }}
-            disabled={loading || candles.length === 0}
-          />
-          <input
-            type="range"
-            min="0"
-            max={lastCandleIndex}
-            value={Math.min(startIndex, lastCandleIndex)}
-            onChange={(event) => handleStartIndexChange(event.target.value)}
-            disabled={loading || candles.length === 0}
-          />
-          <small>Start candle time: {selectedStartTime}</small>
+          <span>Replay Start Candle</span>
+          <div className="replay-status">
+            {isSelectingStart
+              ? "Click any candle on the chart to choose the replay start."
+              : replayActive
+                ? `Replay starts at index ${startIndex} (${selectedStartTime}).`
+                : "Full dataset is visible. Click Play, then pick a candle on the chart."}
+          </div>
+          <small>Selected candle time: {selectedStartTime}</small>
         </div>
         <div className="replay-card">
           <span>Speed</span>
@@ -467,25 +512,38 @@ function App() {
             type="button"
             className="run-button"
             onClick={handleNextCandle}
-            disabled={loading || candles.length === 0 || safeCurrentIndex >= lastCandleIndex}
+            disabled={
+              loading ||
+              candles.length === 0 ||
+              !replayActive ||
+              safeCurrentIndex >= lastCandleIndex
+            }
           >
             Next Candle
           </button>
           <button
             type="button"
             className="run-button secondary-button"
-            onClick={() => setIsPlaying((previous) => !previous)}
-            disabled={loading || candles.length === 0 || safeCurrentIndex >= lastCandleIndex}
+            onClick={handleReplayButton}
+            disabled={loading || candles.length === 0}
           >
-            {isPlaying ? "Pause" : "Play"}
+            {isSelectingStart ? "Select on Chart" : isPlaying ? "Pause" : "Play"}
           </button>
           <button
             type="button"
             className="run-button secondary-button"
-            onClick={handleResetReplay}
+            onClick={replayActive ? handleResetReplay : handleExitReplay}
             disabled={loading || candles.length === 0}
           >
-            Reset
+            {replayActive ? "Reset" : "Show Full Chart"}
+          </button>
+          <button
+            type="button"
+            className="run-button secondary-button"
+            onClick={handleExitReplay}
+            disabled={loading || candles.length === 0 || (!replayActive && !isSelectingStart)}
+          >
+            Exit Replay
           </button>
         </div>
       </section>
@@ -497,7 +555,7 @@ function App() {
           <span>{interval} interval</span>
           <span>{hours} hour range</span>
           <span>{visibleCandleCount} visible / {candles.length} loaded</span>
-          <span>Replay index {safeCurrentIndex}</span>
+          <span>{replayActive ? `Replay index ${safeCurrentIndex}` : "Full chart mode"}</span>
         </div>
 
         <div className="chart-stage">

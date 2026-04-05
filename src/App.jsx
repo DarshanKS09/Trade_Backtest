@@ -15,6 +15,12 @@ const DEFAULT_MARKET = "crypto";
 const DEFAULT_INTERVAL = "1m";
 const DEFAULT_HOURS = 100;
 const HOUR_OPTIONS = [10, 50, 100];
+const DEFAULT_REPLAY_SPEED = "1x";
+const REPLAY_SPEED_OPTIONS = {
+  "1x": 1000,
+  "5x": 250,
+  "10x": 100,
+};
 
 function App() {
   const chartContainerRef = useRef(null);
@@ -34,8 +40,17 @@ function App() {
   const [backtestResult, setBacktestResult] = useState(null);
   const [backtestError, setBacktestError] = useState("");
   const [backtestRunning, setBacktestRunning] = useState(false);
+  const [startIndex, setStartIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [startInput, setStartInput] = useState("0");
+  const [speed, setSpeed] = useState(DEFAULT_REPLAY_SPEED);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const assets = getAssetsForMarket(market);
+  const lastCandleIndex = Math.max(candles.length - 1, 0);
+  const safeCurrentIndex = Math.min(Math.max(currentIndex, 0), lastCandleIndex);
+  const visibleCandles =
+    candles.length > 0 ? candles.slice(0, safeCurrentIndex + 1) : [];
 
   useEffect(() => {
     if (!assets.some((item) => item.value === asset)) {
@@ -109,13 +124,13 @@ function App() {
       return;
     }
 
-    seriesRef.current.setData(candles);
+    seriesRef.current.setData(visibleCandles);
     markersRef.current.setMarkers([]);
 
-    if (candles.length > 0) {
+    if (visibleCandles.length > 0) {
       chartRef.current.timeScale().fitContent();
     }
-  }, [candles]);
+  }, [candles, safeCurrentIndex]);
 
   useEffect(() => {
     if (!asset) {
@@ -132,6 +147,10 @@ function App() {
       setCandles([]);
       setBacktestResult(null);
       setBacktestError("");
+      setStartIndex(0);
+      setCurrentIndex(0);
+      setStartInput("0");
+      setIsPlaying(false);
 
       try {
         const data = await fetchMarketCandles({
@@ -172,6 +191,21 @@ function App() {
   }, [market, asset, interval, hours]);
 
   useEffect(() => {
+    if (candles.length === 0) {
+      setStartIndex(0);
+      setCurrentIndex(0);
+      setStartInput("0");
+      setIsPlaying(false);
+      return;
+    }
+
+    setStartIndex(0);
+    setCurrentIndex(0);
+    setStartInput("0");
+    setIsPlaying(false);
+  }, [candles]);
+
+  useEffect(() => {
     if (!markersRef.current) {
       return;
     }
@@ -181,7 +215,8 @@ function App() {
       return;
     }
 
-    const markers = backtestResult.trades.flatMap((trade) => [
+    const markers = backtestResult.trades
+      .flatMap((trade) => [
       {
         time: trade.entryTime,
         position: "belowBar",
@@ -196,10 +231,38 @@ function App() {
         shape: "arrowDown",
         text: trade.profit >= 0 ? "Sell +" : "Sell -",
       },
-    ]);
+      ])
+      .filter((marker) => marker.time <= (visibleCandles.at(-1)?.time ?? 0));
 
     markersRef.current.setMarkers(markers);
-  }, [backtestResult]);
+  }, [backtestResult, safeCurrentIndex, candles]);
+
+  useEffect(() => {
+    if (!isPlaying || candles.length === 0) {
+      return undefined;
+    }
+
+    if (safeCurrentIndex >= lastCandleIndex) {
+      setIsPlaying(false);
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setCurrentIndex((previous) => {
+        if (previous >= lastCandleIndex) {
+          window.clearInterval(timer);
+          setIsPlaying(false);
+          return previous;
+        }
+
+        return previous + 1;
+      });
+    }, REPLAY_SPEED_OPTIONS[speed]);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [isPlaying, speed, lastCandleIndex, candles.length, safeCurrentIndex]);
 
   function handleRunBacktest() {
     if (candles.length === 0) {
@@ -236,9 +299,40 @@ function App() {
     }
   }
 
+  function handleStartIndexChange(nextValue) {
+    const parsedValue = Number(nextValue);
+
+    if (!Number.isFinite(parsedValue)) {
+      setStartInput(nextValue);
+      return;
+    }
+
+    const clampedIndex = clampIndex(parsedValue, candles.length);
+    setStartInput(String(clampedIndex));
+    setStartIndex(clampedIndex);
+    setCurrentIndex(clampedIndex);
+    setIsPlaying(false);
+  }
+
+  function handleNextCandle() {
+    if (candles.length === 0) {
+      return;
+    }
+
+    setCurrentIndex((previous) => Math.min(previous + 1, lastCandleIndex));
+  }
+
+  function handleResetReplay() {
+    setCurrentIndex(startIndex);
+    setIsPlaying(false);
+  }
+
   const marketLabel =
     MARKET_OPTIONS.find((option) => option.value === market)?.label ?? market;
   const metrics = backtestResult?.metrics;
+  const visibleCandleCount = visibleCandles.length;
+  const selectedStartTime =
+    candles[startIndex]?.time != null ? formatTimestamp(candles[startIndex].time) : "N/A";
 
   return (
     <main className="app-shell">
@@ -327,13 +421,83 @@ function App() {
         </div>
       </section>
 
+      <section className="replay-panel">
+        <div className="replay-card replay-card-wide">
+          <span>Replay Start Index</span>
+          <input
+            type="number"
+            min="0"
+            max={lastCandleIndex}
+            value={startInput}
+            onChange={(event) => setStartInput(event.target.value)}
+            onBlur={(event) => handleStartIndexChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                handleStartIndexChange(event.currentTarget.value);
+              }
+            }}
+            disabled={loading || candles.length === 0}
+          />
+          <input
+            type="range"
+            min="0"
+            max={lastCandleIndex}
+            value={Math.min(startIndex, lastCandleIndex)}
+            onChange={(event) => handleStartIndexChange(event.target.value)}
+            disabled={loading || candles.length === 0}
+          />
+          <small>Start candle time: {selectedStartTime}</small>
+        </div>
+        <div className="replay-card">
+          <span>Speed</span>
+          <select
+            value={speed}
+            onChange={(event) => setSpeed(event.target.value)}
+            disabled={candles.length === 0}
+          >
+            {Object.keys(REPLAY_SPEED_OPTIONS).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="replay-card replay-actions">
+          <button
+            type="button"
+            className="run-button"
+            onClick={handleNextCandle}
+            disabled={loading || candles.length === 0 || safeCurrentIndex >= lastCandleIndex}
+          >
+            Next Candle
+          </button>
+          <button
+            type="button"
+            className="run-button secondary-button"
+            onClick={() => setIsPlaying((previous) => !previous)}
+            disabled={loading || candles.length === 0 || safeCurrentIndex >= lastCandleIndex}
+          >
+            {isPlaying ? "Pause" : "Play"}
+          </button>
+          <button
+            type="button"
+            className="run-button secondary-button"
+            onClick={handleResetReplay}
+            disabled={loading || candles.length === 0}
+          >
+            Reset
+          </button>
+        </div>
+      </section>
+
       <section className="chart-panel">
         <div className="chart-toolbar">
           <span>{marketLabel}</span>
           <span>{asset}</span>
           <span>{interval} interval</span>
           <span>{hours} hour range</span>
-          <span>{candles.length} candles loaded</span>
+          <span>{visibleCandleCount} visible / {candles.length} loaded</span>
+          <span>Replay index {safeCurrentIndex}</span>
         </div>
 
         <div className="chart-stage">
@@ -362,6 +526,14 @@ function App() {
   );
 }
 
+function clampIndex(value, length) {
+  if (length === 0) {
+    return 0;
+  }
+
+  return Math.min(Math.max(Math.floor(value), 0), length - 1);
+}
+
 function formatCurrency(value) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -372,6 +544,10 @@ function formatCurrency(value) {
 
 function formatPercent(value) {
   return `${value.toFixed(2)}%`;
+}
+
+function formatTimestamp(timestamp) {
+  return new Date(timestamp * 1000).toLocaleString();
 }
 
 export default App;

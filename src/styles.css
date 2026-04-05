@@ -93,6 +93,15 @@ body {
   padding: 12px 14px;
 }
 
+.control-field input {
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  padding: 12px 14px;
+}
+
 .run-button {
   border: 0;
   border-radius: 12px;
@@ -136,6 +145,63 @@ body {
 .result-card strong {
   color: #0f172a;
   font-size: 1.3rem;
+}
+
+.replay-panel {
+  margin: 0 auto 20px;
+  width: 100%;
+  max-width: 1400px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(320px, 2fr) repeat(2, minmax(180px, 1fr));
+}
+
+.replay-card {
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
+  padding: 16px 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.replay-card span {
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.replay-card input,
+.replay-card select {
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  padding: 12px 14px;
+}
+
+.replay-card input[type="range"] {
+  padding: 0;
+}
+
+.replay-card small {
+  color: #64748b;
+}
+
+.replay-card-wide {
+  min-width: 0;
+}
+
+.replay-actions {
+  align-content: end;
+}
+
+.secondary-button {
+  background: linear-gradient(135deg, #334155 0%, #64748b 100%);
 }
 
 .chart-panel {
@@ -212,5 +278,9 @@ body {
     right: 12px;
     top: 12px;
     text-align: center;
+  }
+
+  .replay-panel {
+    grid-template-columns: 1fr;
   }
 }
